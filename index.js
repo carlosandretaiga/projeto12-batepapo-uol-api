@@ -1,10 +1,9 @@
 import express from 'express';
 import chalk from 'chalk';
 import cors from 'cors';
-import {MongoClient, ObjectId } from 'mongodb';
+import {MongoClient} from 'mongodb';
 import dotenv from 'dotenv';
 import joi from 'joi';
-
 import dayjs from 'dayjs';
 
 const app = express();
@@ -14,21 +13,19 @@ dotenv.config();
 const database = process.env.BANCO_APP; 
 
 let db = null;
-let now = dayjs();
-let entryTime = now.format("HH:mm:ss")
-
-
+//let now = dayjs();
+//let entryTime = now.format("HH:mm:ss")
+//dayjs().format("HH:mm:ss")
 
 const mongoClient = new MongoClient(process.env.MONGO_URL);
 const promise =  mongoClient.connect();
 promise.then(() => {
   db = mongoClient.db(database);
-  console.log(chalk.blue.bold("Conexão com o banco de dados está funcionando!"))
+  console.log(chalk.blue.bold("Conexão com o banco de dados está funcionando!"));
 });
-promise.catch(error => {
+promise.catch((error) => {
   console.log("Não conectou ao banco", error);
 });
-
 
 app.get("/participants", async (request, response) => {
   try {
@@ -40,11 +37,8 @@ app.get("/participants", async (request, response) => {
   }
 });
 
-
 app.post("/participants", async (request, response) => {
   const participant = request.body;
-
-  console.log("Body da nossa requisição", participant.name);
 
   const newParticipant = {
     name: participant.name,
@@ -52,10 +46,10 @@ app.post("/participants", async (request, response) => {
   };
 
   const participantSchema = joi.object({
-    name: joi.string().required()
+    name: joi.string().min(1).required()
   });
 
-  const validShema = participantSchema.validate(participant, {abortEarly: false});
+  const validShema = participantSchema.validate(participant);
 
   if(validShema.error) {
     return response.sendStatus(422);
@@ -66,12 +60,11 @@ app.post("/participants", async (request, response) => {
     to: 'Todos',
     text: 'entra na sala...',
     type: 'status', 
-    time: entryTime
+    time: dayjs().format("HH:mm:ss")
   }
 
 
   try {
-
     const participantExists = await db.collection("participants").findOne({name: participant.name});
 
     if(participantExists) {
@@ -80,7 +73,6 @@ app.post("/participants", async (request, response) => {
     }
 
     await db.collection("participants").insertOne(newParticipant);
-
     await db.collection("messages").insertOne(newMessageEntry);
     response.sendStatus(201);
   } catch (error) {
@@ -93,27 +85,25 @@ app.post("/participants", async (request, response) => {
 app.post("/messages", async (request, response) => {
   const message = request.body;
   const {user} = request.headers;
-  console.log(user);
 
   const newMessageSend = {
     from: user,
     to: message.to,
     text: message.text,
     type: message.type, 
-    time: entryTime
+    time: dayjs().format("HH:mm:ss")
   }
 
   const messageSchema = joi.object({
     to: joi.string().required(),
     text: joi.string().required(),
-    type: joi.string().required(), 
-    time: joi.string().valid('message', 'private_message').required()
+    type: joi.string().valid('message', 'private_message').required()
   });
 
-  const validacao = messageSchema.validate(message, {abortEarly: false});
+  const validSchema = messageSchema.validate(message, {abortEarly: false});
 
-  if(validacao.error) {
-    return response.status(422).send(validacao.error.details.map(detailError => detailError.message));
+  if(validSchema.error) {
+    return response.status(422).send(validSchema.error.details.map(detailError => detailError.message));
    
   }
 
@@ -122,15 +112,14 @@ app.post("/messages", async (request, response) => {
     const participantExists = await db.collection("participants").findOne({name: user});
 
     if(!participantExists) {
-      return response.sendStatus(422);
-      
+      return response.sendStatus(422); 
     }
 
     await db.collection("messages").insertOne(newMessageSend);
     response.sendStatus(201);
   } catch (error) {
-    response.status(422).send("Usuário não consta!", error);
-    return;
+    return response.status(422).send("Usuário não consta!", error);
+    
   }
 
 });
@@ -180,23 +169,39 @@ app.post("/status", async (request, response) => {
 
   } catch (error) {
     response.sendStatus(500);
-    
   }
-
 });
 
+const TIME_REMOVED_PARTICIPANTS = 15 * 1000;
 
-/* setInterval( async () => {
+setInterval(async () => {
+  const secondsLimit = Date.now() - (10 * 1000);
 
   try {
-    //verificar quem está inativo. Tentar usar map. .find, .insert, .delete, .update
+    const removedInactiveParticipants = await db.collection("participants").find({lastStatus: {$lte: secondsLimit}}).toArray();
 
+    if(removedInactiveParticipants.length > 0) {
+      const messageToParticipantInactive = removedInactiveParticipants.map(inactiveParticipant => {
+
+        return {
+          from: inactiveParticipant.name,
+          to: 'Todos',
+          text: 'sai da sala...',
+          type: 'status',
+          time: dayjs().format("HH:mm:ss")
+        }
+      });
+
+      await db.collection("messages").insertMany(messageToParticipantInactive);
+      await db.collection("participants").deleteMany({lastStatus: {$lte: secondsLimit}});
+    }
     
   } catch (error) {
+    response.sendStatus(500);
     
   }
 
-}, 1500) */
+}, TIME_REMOVED_PARTICIPANTS);
 
 
 
