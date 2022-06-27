@@ -32,11 +32,11 @@ promise.catch(error => {
 
 app.get("/participants", async (request, response) => {
   try {
-    const participants = await db.collection("participants").find({}).toArray();
+    const participants = await db.collection("participants").find().toArray();
     response.send(participants);
   } catch (error) {
-    console.log(chalk.bold.red("Erro ao receber a listagem de participantes"), error);
     response.status(500).send("Infelizmente não conseguimos listar os participantes");
+    return;
   }
 });
 
@@ -55,18 +55,13 @@ app.post("/participants", async (request, response) => {
     name: joi.string().required()
   });
 
-  const validacao = participantSchema.validate(participant, {abortEarly: false});
-  console.log(validacao);
+  const validShema = participantSchema.validate(participant, {abortEarly: false});
 
-  if(validacao.error) {
-    response.status(422).send(validacao.error.details.map(detail => detail.message));
+  if(validShema.error) {
+    response.sendStatus(422);
     return;
   }
 
-  const participantBanco = await db.collection("participants").find({}).toArray();
-
-
-  
   const newMessageEntry = {
     from: participant.name,
     to: 'Todos',
@@ -78,11 +73,10 @@ app.post("/participants", async (request, response) => {
 
   try {
 
-    //console.log(participantBanco);
+    const participantExists = await db.collection("participants").findOne({name: participant.name});
 
-    if(participantBanco.find((newUser) => newUser.name === participant.name)) {
+    if(participantExists) {
       response.sendStatus(409);
-      //console.log("O participante já existe!");
       return;
     }
 
@@ -95,6 +89,66 @@ app.post("/participants", async (request, response) => {
 
   }
 });
+
+
+app.post("/messages", async (request, response) => {
+  const message = request.body;
+  const {user} = request.headers;
+  console.log(user);
+
+  const newMessageSend = {
+    from: user,
+    to: message.to,
+    text: message.text,
+    type: message.type, 
+    time: entryTime
+  }
+
+  const messageSchema = joi.object({
+    to: joi.string().required(),
+    text: joi.string().required(),
+    type: joi.string().required(), 
+    time: joi.string().valid('message', 'private_message').required()
+  });
+
+  const validacao = messageSchema.validate(message, {abortEarly: false});
+
+  if(validacao.error) {
+    response.status(422).send(validacao.error.details.map(detailError => detailError.message));
+    return;
+  }
+
+  try {
+
+    const participantExists = await db.collection("participants").findOne({name: user});
+
+    if(!participantExists) {
+      response.sendStatus(422);
+      return;
+    }
+
+    await db.collection("messages").insertOne(newMessageSend);
+    response.sendStatus(201);
+  } catch (error) {
+    response.status(422).send("Usuário não consta!", error);
+    return;
+   
+  }
+
+});
+
+
+/* setInterval( async () => {
+
+  try {
+    //verificar quem está inativo. Tentar usar map. .find, .insert, .delete, .update
+
+    
+  } catch (error) {
+    
+  }
+
+}, 1500) */
 
 
 
