@@ -63,11 +63,10 @@ app.post("/participants", async (request, response) => {
     time: dayjs().format("HH:mm:ss")
   }
 
-
   try {
-    const participantExists = await db.collection("participants").findOne({name: participant.name});
+    const participantExistsDb = await db.collection("participants").findOne({name: participant.name});
 
-    if(participantExists) {
+    if(participantExistsDb) {
      return response.sendStatus(409);
       
     }
@@ -109,9 +108,9 @@ app.post("/messages", async (request, response) => {
 
   try {
 
-    const participantExists = await db.collection("participants").findOne({name: user});
+    const participantExistsDb = await db.collection("participants").findOne({name: user});
 
-    if(!participantExists) {
+    if(!participantExistsDb) {
       return response.sendStatus(422); 
     }
 
@@ -131,9 +130,9 @@ app.get("/messages", async (request, response) => {
   const {user} = request.headers;
 
   try {
-    const messagesBanco = await db.collection("messages").find().toArray();
+    const messagesDb = await db.collection("messages").find().toArray();
 
-    const filterMessages = messagesBanco.filter(message => {
+    const filterMessages = messagesDb.filter(message => {
       const messageIsPublic = message.type === "message";
       const messageToUser = message.to === "Todos" || (message.to === user || message.from === user);
     
@@ -158,9 +157,9 @@ app.post("/status", async (request, response) => {
 
   try {
 
-    const participantExists = await db.collection("participants").findOne({name: user});
+    const participantExistsDb = await db.collection("participants").findOne({name: user});
     
-    if(!participantExists) {
+    if(!participantExistsDb) {
       return response.sendStatus(404);
     }
 
@@ -202,8 +201,6 @@ setInterval(async () => {
   }
 
 }, TIME_REMOVED_PARTICIPANTS);
-
-
 
 app.listen(5000, () => {
   console.log(chalk.bold.green('Servidor funcionando na porta 5000!'));
