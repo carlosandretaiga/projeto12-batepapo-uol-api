@@ -58,8 +58,7 @@ app.post("/participants", async (request, response) => {
   const validShema = participantSchema.validate(participant, {abortEarly: false});
 
   if(validShema.error) {
-    response.sendStatus(422);
-    return;
+    return response.sendStatus(422);
   }
 
   const newMessageEntry = {
@@ -76,8 +75,8 @@ app.post("/participants", async (request, response) => {
     const participantExists = await db.collection("participants").findOne({name: participant.name});
 
     if(participantExists) {
-      response.sendStatus(409);
-      return;
+     return response.sendStatus(409);
+      
     }
 
     await db.collection("participants").insertOne(newParticipant);
@@ -114,8 +113,8 @@ app.post("/messages", async (request, response) => {
   const validacao = messageSchema.validate(message, {abortEarly: false});
 
   if(validacao.error) {
-    response.status(422).send(validacao.error.details.map(detailError => detailError.message));
-    return;
+    return response.status(422).send(validacao.error.details.map(detailError => detailError.message));
+   
   }
 
   try {
@@ -123,8 +122,8 @@ app.post("/messages", async (request, response) => {
     const participantExists = await db.collection("participants").findOne({name: user});
 
     if(!participantExists) {
-      response.sendStatus(422);
-      return;
+      return response.sendStatus(422);
+      
     }
 
     await db.collection("messages").insertOne(newMessageSend);
@@ -132,8 +131,39 @@ app.post("/messages", async (request, response) => {
   } catch (error) {
     response.status(422).send("Usuário não consta!", error);
     return;
-   
   }
+
+});
+
+
+
+app.get("/messages", async (request, response) => {
+  const limit = parseInt(request.query.limit);
+  const {user} = request.headers;
+
+  try {
+    const messagesBanco = await db.collection("messages").find().toArray();
+
+    const filterMessages = messagesBanco.filter(message => {
+      const messageIsPublic = message.type === "message";
+      const messageToUser = message.to === "Todos" || (message.to === user || message.from === user);
+      
+
+      return messageToUser || messageIsPublic;
+
+    });
+
+    if(limit && limit !== NaN) {
+      return response.send(filterMessages.slice(-limit)); 
+    } 
+
+    response.send(filterMessages);
+  
+  } catch (error) {
+    response.sendStatus(500);
+  }
+
+
 
 });
 
