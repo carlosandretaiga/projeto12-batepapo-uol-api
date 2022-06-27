@@ -147,8 +147,7 @@ app.get("/messages", async (request, response) => {
     const filterMessages = messagesBanco.filter(message => {
       const messageIsPublic = message.type === "message";
       const messageToUser = message.to === "Todos" || (message.to === user || message.from === user);
-      
-
+    
       return messageToUser || messageIsPublic;
 
     });
@@ -163,7 +162,26 @@ app.get("/messages", async (request, response) => {
     response.sendStatus(500);
   }
 
+});
 
+app.post("/status", async (request, response) => {
+  const {user} = request.headers; 
+
+  try {
+
+    const participantExists = await db.collection("participants").findOne({name: user});
+    
+    if(!participantExists) {
+      return response.sendStatus(404);
+    }
+
+    await db.collection("participants").updateOne({name: user}, {$set: {lastStatus: Date.now()}});
+    response.sendStatus(200);
+
+  } catch (error) {
+    response.sendStatus(500);
+    
+  }
 
 });
 
